@@ -20,8 +20,18 @@ public interface ManageService {
 
     List<SpuInfo> getSpuList(String catalog3Id);
 
-
     List<BaseSaleAttr> getBaseSaleAttrList();
 
     void saveSpuInfo(SpuInfo spuInfo);
+
+
+    List<SpuImage> getSpuImgList(String spuId);
+
+    List<SpuSaleAttr> getSpuSaleAttrList(String spuId);
+
+
+    void saveSkuInfo(SkuInfo skuInfo);
+
+
+    SkuInfo getSkuInfo(String skuId);
 }

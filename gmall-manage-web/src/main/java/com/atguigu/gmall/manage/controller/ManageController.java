@@ -91,4 +91,27 @@ public class ManageController {
         manageService.saveSpuInfo(spuInfo);
     }
 
+    //spuImageList
+    @GetMapping("spuImageList")
+    @ResponseBody
+    public List<SpuImage> getSpuImgList(String spuId){
+       return manageService.getSpuImgList(spuId);
+    }
+
+    //http://localhost:8082/spuSaleAttrList?spuId=67
+    @GetMapping("spuSaleAttrList")
+    @ResponseBody
+    public List<SpuSaleAttr> getSpuSaleAttrList(String spuId){
+
+        return manageService.getSpuSaleAttrList(spuId);
+    }
+
+    @RequestMapping("/saveSkuInfo")
+    @ResponseBody
+    public String saveSkuInfo(@RequestBody SkuInfo skuInfo){
+        manageService.saveSkuInfo(skuInfo);
+        return "ok";
+    }
+
+
 }

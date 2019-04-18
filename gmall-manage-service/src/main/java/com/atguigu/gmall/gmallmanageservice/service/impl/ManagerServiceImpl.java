@@ -1,15 +1,22 @@
 package com.atguigu.gmall.gmallmanageservice.service.impl;
 
 import com.alibaba.dubbo.config.annotation.Service;
+import com.alibaba.fastjson.JSON;
 import com.atguigu.gmall.bean.*;
+import com.atguigu.gmall.gmallmanageservice.constant.ManageConst;
 import com.atguigu.gmall.gmallmanageservice.mapper.*;
 import com.atguigu.gmall.service.ManageService;
+import com.atguigu.gmall.util.RedisUtil;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
+import redis.clients.jedis.Jedis;
 
+import javax.swing.tree.VariableHeightLayoutCache;
 import java.util.List;
 
 @Service
+@Component
 public class ManagerServiceImpl implements ManageService {
     @Autowired
     private BaseCatalog1Mapper baseCatalog1Mapper;
@@ -41,8 +48,29 @@ public class ManagerServiceImpl implements ManageService {
     @Autowired
     private SpuSaleAttrValueMapper spuSaleAttrValueMapper;
 
+    @Autowired
+    private SkuInfoMapper skuInfoMapper;
+
+    @Autowired
+    private SkuAttrValueMapper skuAttrValueMapper;
+
+    @Autowired
+    private SkuImageMapper skuImageMapper;
+
+    @Autowired
+    private SkuSaleAttrValueMapper skuSaleAttrValueMapper;
+
+    @Autowired
+    private RedisUtil redisUtil;
+
     @Override
     public List<BaseCatalog1> getBaseCatalog1() {
+        try{
+            Jedis jedis = redisUtil.getJedis();
+            jedis.set("1","testRedis");
+        }catch (Exception e){
+            e.printStackTrace();
+        }
 
         return baseCatalog1Mapper.selectAll();
     }
@@ -73,9 +101,10 @@ public class ManagerServiceImpl implements ManageService {
 
     @Override
     public List<BaseAttrInfo> getAttrList(String catalog3Id) {
-        BaseAttrInfo baseAttrInfo = new BaseAttrInfo();
+       /* BaseAttrInfo baseAttrInfo = new BaseAttrInfo();
         baseAttrInfo.setCatalog3Id(catalog3Id);
-        return baseAttrInfoMapper.select(baseAttrInfo);
+        return baseAttrInfoMapper.select(baseAttrInfo);*/
+       return baseAttrInfoMapper.getBaseAttrInfoListByCatalog3Id(catalog3Id);
     }
 
     @Override
@@ -178,4 +207,120 @@ public class ManagerServiceImpl implements ManageService {
         }
 
     }
+
+    @Override
+    public List<SpuImage> getSpuImgList(String spuId) {
+        SpuImage spuImage = new SpuImage();
+        spuImage.setSpuId(spuId);
+        return spuImageMapper.select(spuImage);
+    }
+
+    @Override
+    public List<SpuSaleAttr> getSpuSaleAttrList(String spuId) {
+        /*SpuSaleAttr spuSaleAttr = new SpuSaleAttr();
+        spuSaleAttr.setSpuId(spuId);
+        List<SpuSaleAttr> spuSaleAttrList = spuSaleAttrMapper.select(spuSaleAttr);*/
+        //Long id = spuId;
+        long id = Long.parseLong(spuId);
+        List<SpuSaleAttr> spuSaleAttrList = spuSaleAttrMapper.selectSpuSaleAttrList(id);
+        return spuSaleAttrList;
+    }
+
+    @Override
+    public void saveSkuInfo(SkuInfo skuInfo) {
+        if(skuInfo.getId()!=null && skuInfo.getId().length()>0){
+            //修改
+            skuInfoMapper.updateByPrimaryKeySelective(skuInfo);
+        }else{//增加
+            skuInfoMapper.insertSelective(skuInfo);
+        }
+
+        //删除图片
+        String skuId = skuInfo.getId();
+        SkuImage skuImage1 = new SkuImage();
+        skuImage1.setSkuId(skuId);
+        skuImageMapper.delete(skuImage1);
+        //插入图片地址
+        List<SkuImage> skuImageList = skuInfo.getSkuImageList();
+        if(skuImageList.size()>0 && skuImageList!=null){
+            for (SkuImage skuImage : skuImageList) {
+                if(StringUtils.isEmpty(skuImage.getId())){
+                    skuImage.setId(null);
+                }
+                // skuId 必须赋值
+                skuImage.setSkuId(skuInfo.getId());
+                skuImageMapper.insertSelective(skuImage);
+            }
+        }
+
+        //插入平台属性信息
+        SkuAttrValue skuAttrValue1 = new SkuAttrValue();
+        skuAttrValue1.setSkuId(skuId);
+        skuAttrValueMapper.delete(skuAttrValue1);
+        List<SkuAttrValue> skuAttrValueList = skuInfo.getSkuAttrValueList();
+        if(skuAttrValueList!=null && skuAttrValueList.size()>0){
+            for (SkuAttrValue skuAttrValue : skuAttrValueList) {
+                if(StringUtils.isEmpty(skuAttrValue.getId())){
+                    skuAttrValue.setId(null);
+                }
+                skuAttrValue.setSkuId(skuId);
+                skuAttrValueMapper.insertSelective(skuAttrValue);
+            }
+        }
+
+        //插入销售属性值
+        SkuSaleAttrValue skuSaleAttrValue = new SkuSaleAttrValue();
+        skuSaleAttrValue.setSkuId(skuId);
+        skuSaleAttrValueMapper.delete(skuSaleAttrValue);
+        List<SkuSaleAttrValue> skuSaleAttrValueList = skuInfo.getSkuSaleAttrValueList();
+        if(skuSaleAttrValueList.size()>0 && skuSaleAttrValueList!=null){
+            for (SkuSaleAttrValue saleAttrValue : skuSaleAttrValueList) {
+                if(StringUtils.isEmpty(saleAttrValue.getId())){
+                    saleAttrValue.setId(null);
+                }
+                saleAttrValue.setSkuId(skuId);
+                skuSaleAttrValueMapper.insertSelective(saleAttrValue);
+            }
+        }
+
+    }
+
+    @Override
+    public SkuInfo getSkuInfo(String skuId) {
+        SkuInfo skuInfo = null;
+        //先检查redis中有没有需要的信息，没有，将查询到的信息放到redis中
+        Jedis jedis = redisUtil.getJedis();
+        String skuInfoKey = ManageConst.SKUKEY_PREFIX + skuId + ManageConst.SKUKEY_SUFFIX;
+        if(jedis.exists(skuInfoKey)){//如果redis中有，就从redis中取
+            String skuInfoJson  = jedis.get(skuInfoKey);
+            if(!StringUtils.isEmpty(skuInfoJson)){
+                 skuInfo = JSON.parseObject(skuInfoJson, SkuInfo.class);
+            }
+        }else{//生成锁
+            String skuLockKey = ManageConst.SKUKEY_PREFIX + skuId + ManageConst.SKULOCK_SUFFIX;
+            jedis.set(skuLockKey,"ok", "nx", "px", ManageConst.SKULOCK_EXPIRE_PX);
+            if("ok".equals(skuLockKey)){
+                skuInfo = skuInfoMapper.selectByPrimaryKey(skuId);
+                SkuImage skuImage = new SkuImage();
+                skuImage.setSkuId(skuId);
+                List<SkuImage> skuImageList = skuImageMapper.select(skuImage);
+                skuInfo.setSkuImageList(skuImageList);
+                String jsonString = JSON.toJSONString(skuInfo);
+                jedis.setex("skuInfoKey", ManageConst.skukey_timeout, jsonString );//将数据放入redis中
+            }else{
+                try {
+                    Thread.sleep(1000);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+                return getSkuInfo(skuId);
+            }
+
+
+        }
+        jedis.close();
+       return skuInfo;
+    }
+
+
 }

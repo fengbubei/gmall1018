@@ -2,9 +2,7 @@ package com.atguigu.gmall.bean;
 
 import lombok.Data;
 
-import javax.persistence.Column;
-import javax.persistence.Id;
-import javax.persistence.Transient;
+import javax.persistence.*;
 import java.io.Serializable;
 import java.util.List;
 
@@ -12,6 +10,7 @@ import java.util.List;
 public class SpuInfo implements Serializable{
     @Column
     @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private String id;
 
     @Column
